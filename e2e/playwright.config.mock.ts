@@ -213,7 +213,7 @@ const baseEnv = {
     ? {
         E2E_MCP_APPS: 'true',
         MCP_SANDBOX_FRAME_ANCESTORS:
-          process.env.MCP_SANDBOX_FRAME_ANCESTORS ?? 'http://127.0.0.1:3080',
+          process.env.MCP_SANDBOX_FRAME_ANCESTORS ?? 'http://127.0.0.1:3180',
       }
     : {}),
   /** The Assistants runtime uses the OpenAI SDK directly, outside the agents run hook. */
@@ -260,6 +260,8 @@ const preservedCredentialEnvKeys = new Set([
  */
 function writeRuntimeMockConfig() {
   const template = fs.readFileSync(configTemplatePath, 'utf8');
+  // Keep this URL out of the other substitutions when the override uses another fixture's default port.
+  const httpMcpPlaceholder = '__E2E_HTTP_MCP_URL__';
   let config =
     process.env.E2E_MODEL_SPECS_ENFORCE === 'true'
       ? template.replace('\n  enforce: false\n', '\n  enforce: true\n')
@@ -268,6 +270,30 @@ function writeRuntimeMockConfig() {
     config = config.replace(
       '    toolApproval:\n      enabled: true',
       '    toolApproval:\n      enabled: false',
+    );
+  }
+  config = config.replace('http://127.0.0.1:8765/mcp', httpMcpPlaceholder);
+  if (process.env.E2E_MCP_CONNECTION_STATUS === 'true') {
+    config = config.replace(
+      '  allowedDomains:\n',
+      '  allowedDomains:\n    - http://127.0.0.1:28769\n',
+    );
+    config = config.replace(
+      'mcpServers:\n',
+      `mcpServers:
+  e2e-status:
+    type: streamable-http
+    url: http://127.0.0.1:28769/mcp
+    requiresOAuth: false
+    startup: false
+    initTimeout: 1000
+    timeout: 1000
+    headers:
+      Authorization: 'Bearer e2e-status-token'
+      X-E2E-User: '{{LIBRECHAT_USER_ID}}'
+    title: E2E Connection State
+    description: Controlled MCP connection-attempt fixture.
+`,
     );
   }
   config = config.replace(
@@ -414,6 +440,7 @@ function writeRuntimeMockConfig() {
   if (MCP_OAUTH_PORT !== '8767') {
     config = config.split('127.0.0.1:8767').join(`127.0.0.1:${MCP_OAUTH_PORT}`);
   }
+  config = config.replace(httpMcpPlaceholder, `http://127.0.0.1:${MCP_HTTP_PORT}/mcp`);
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, config);
   if (enableDynamicMcp) {
@@ -530,15 +557,21 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  /** In CI a test that fails and then passes on a retry fails the run. The retries stay for
+   *  what they show: a trace of each failed attempt, video of the first retry, and whether the
+   *  failure is deterministic. Derived profiles inherit this with the rest of the config. */
+  failOnFlakyTests: !!process.env.CI,
   workers: 1,
   /** In CI the JSON results land beside the HTML report (reporters end in order, after the HTML
    *  reporter has replaced its folder), so the report artifact also carries the per-file
-   *  timings `.github/scripts/playwright-shards.mjs record` rebuilds the shard plan from. */
+   *  timings `.github/scripts/playwright-shards.mjs record` rebuilds the shard plan from.
+   *  The last reporter names each retried pass in the job log and the job summary. */
   reporter: process.env.CI
     ? [
         ['html', { outputFolder: reportPath, open: 'never' }],
         ['line'],
         ['json', { outputFile: path.join(reportPath, 'results.json') }],
+        ['./reporters/retried.mjs'],
       ]
     : [['html', { outputFolder: reportPath }], ['list']],
   use: {
@@ -549,6 +582,13 @@ export default defineConfig({
     headless: true,
     storageState: path.resolve(process.cwd(), 'e2e/storageState.json'),
     screenshot: 'only-on-failure',
+    /** Each test opens a fresh context, so the PWA service worker installs and claims the page
+     *  during that test's first load. A `page.route` installed within a few milliseconds of the
+     *  claim is never consulted, and the request it was meant to hold reaches the server. This
+     *  blocks every worker in the context, including the one Sandpack's static preview serves
+     *  an artifact's files from, so a spec that needs one opts back in with
+     *  `test.use({ serviceWorkers: 'allow' })`. Derived profiles inherit this through `use`. */
+    serviceWorkers: 'block',
   },
   expect: {
     timeout: 10000,
@@ -687,11 +727,13 @@ export default defineConfig({
       cwd: rootPath,
       // Only the one-replica harness may assert the scheduler's single-process topology.
       // The two-replica MCP suite must leave scheduled writes disabled.
+      // The replica proxy reads the address itself, so it gets the resolved one.
       env: {
         ...process.env,
+        E2E_BASE_URL: baseURL,
         ...(replicaCount === 1 ? { SCHEDULES_SINGLE_PROCESS: 'true' } : {}),
       },
-      url: baseURL,
+      url: new URL('/readyz', baseURL).href,
       stdout: 'pipe',
       ignoreHTTPSErrors: true,
       timeout: 120_000,

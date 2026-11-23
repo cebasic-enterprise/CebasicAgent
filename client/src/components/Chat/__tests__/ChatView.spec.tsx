@@ -20,7 +20,13 @@ jest.mock('~/hooks/AuthContext', () => ({
   useAuthContext: () => ({ isAuthenticated: false, user: null, roles: {} }),
 }));
 
+jest.mock('~/hooks/Chat/target', () => ({
+  __esModule: true,
+  default: () => ({ ready: true, pending: false, failed: false, retry: jest.fn() }),
+}));
+
 jest.mock('~/data-provider', () => ({
+  useCachedMessages: () => ({ data: null }),
   useProjectQuery: () => ({ data: undefined }),
 }));
 
@@ -33,15 +39,12 @@ jest.mock('@librechat/chat/react', () => {
   const actual = jest.requireActual('@librechat/chat/react');
   return {
     ...actual,
-    ChatSessionProvider: ({
-      children,
-    }: {
-      children: (session: { messages: null; isLoading: boolean }) => React.ReactNode;
-    }) => (
+    ChatSessionProvider: ({ children }: { children: React.ReactNode }) => (
       <actual.ChatContext.Provider value={{ conversation: mockConversation() }}>
-        {children({ messages: null, isLoading: false })}
+        {children}
       </actual.ChatContext.Provider>
     ),
+    useChatSessionMessages: () => ({ messages: null, isLoading: false }),
   };
 });
 

@@ -7,16 +7,24 @@ import {
   getCodeEnvRefForProfile,
   resolveSandboxFilename,
 } from 'librechat-data-provider';
-import type { CodeEnvRef, TFile } from 'librechat-data-provider';
+import type {
+  TFile,
+  CodeEnvRef,
+  CodeEnvRefContent,
+  AgentToolResources,
+} from 'librechat-data-provider';
 import type { AxiosInstance } from 'axios';
 import type { CodeExecutionRoute } from '../provision/service';
 import type { CodeExecutionContext } from '~/agents/execution';
+import type { CodeObjectInfo } from './receipt';
 import type { ServerRequest } from '~/types';
 import {
   claimCodeDestination,
   createCodeDestinationSet,
   reserveCodeDestination,
-  sortCodeFilesByDestinationPriority,
+  selectCodeFileGenerations,
+  getCodeFileDestination,
+  planCodeSnapshotMounts,
 } from './destinations';
 import {
   codeServerHttpAgent,
@@ -24,14 +32,47 @@ import {
   createCodeApiUploadRegistry,
   withCodeApiUploadSlot,
 } from '~/utils/code';
+import { checkCodeFileActive, getSnapshotReceipt, provesStoredContent } from './receipt';
+import { getAgentResourceFileIds, getCodeEnvScope, isCodeRefInScope } from './scope';
+import { getCodeEnvUploadFilename, getUploadedCodeEnvFilename } from './form';
 import { isStorageNotFoundError } from '~/files/encode/utils';
 import { codeExecutionHeaders } from '~/agents/execution';
 import { buildCodeEnvDownloadQuery } from './identity';
-import { getCodeEnvUploadFilename } from './form';
 import { isAbortError } from '~/utils/errors';
 
-export interface CodeFileInfo {
-  lastModified?: string;
+/** Only a completed upload creates a freshness receipt; live output provenance does not. */
+export function createCodeFileUploadRef({
+  sourceRef,
+  uploaded,
+  sandboxFilename,
+  executionProfile,
+  executionRouteKey = executionProfile,
+  content,
+}: {
+  sourceRef: CodeEnvRef | SnapshotCodeOwner;
+  uploaded: Pick<CodeEnvRef, 'storage_session_id' | 'file_id'> & { filename?: string };
+  sandboxFilename: string;
+  executionProfile: 'default' | 'stateful';
+  executionRouteKey?: string;
+  /** Digest of the uploaded bytes, when the uploader held them. */
+  content?: CodeEnvRefContent;
+}): CodeEnvRef {
+  return {
+    ...(sourceRef.kind === 'skill'
+      ? { kind: sourceRef.kind, version: sourceRef.version }
+      : { kind: sourceRef.kind }),
+    id: sourceRef.id,
+    storage_session_id: uploaded.storage_session_id,
+    file_id: uploaded.file_id,
+    sandboxFilename: getUploadedCodeEnvFilename(uploaded, sandboxFilename),
+    executionProfile,
+    ...(executionRouteKey !== executionProfile ? { executionRouteKey } : {}),
+    provisionedAt: Date.now(),
+    ...(content ? { content } : {}),
+  };
+}
+
+export interface CodeFileInfo extends CodeObjectInfo {
   originalFilename?: string;
 }
 
@@ -87,18 +128,50 @@ export async function getCodeFileInfo({
   }
 }
 
-/** Matches the existing 23-hour code-storage freshness window. */
-export function checkCodeFileActive(dateString: string | undefined): boolean {
-  return dateString != null && (Date.now() - new Date(dateString).getTime()) / 3_600_000 < 23;
+interface SnapshotCodeOwner {
+  kind: 'agent' | 'user';
+  id: string;
+  storage_session_id?: undefined;
+  file_id?: undefined;
+  sandboxFilename?: undefined;
 }
 
 interface PrimedCodeFile {
   file: TFile;
   ref: CodeEnvRef | undefined;
-  sourceRef: CodeEnvRef;
+  sourceRef: CodeEnvRef | SnapshotCodeOwner;
   sandboxName: string;
   isActive: boolean;
   getUploadTime: () => Promise<string | undefined>;
+}
+
+/** Who a turn runs as: the requesting user, and the agent executing for them. */
+export interface CodeTurnIdentity {
+  userId?: string;
+  agentId?: string;
+  /** The agent's resources as the turn loads them. Files its own lists name belong to it. */
+  agentResources?: AgentToolResources | null;
+}
+
+/**
+ * The scope a snapshot's upload is filed under this turn, by the rule resource priming queues
+ * it with, or nothing when the turn's identity for that scope is unknown. Membership in the
+ * agent's own resources decides it, never a pointer that happens to name the executing agent.
+ */
+function getSnapshotScope(
+  file: TFile,
+  agentFileIds: ReadonlySet<string> | undefined,
+  identity: CodeTurnIdentity | undefined,
+): SnapshotCodeOwner | undefined {
+  if (!identity) {
+    return undefined;
+  }
+  const { kind, id } = getCodeEnvScope({
+    agentScoped: agentFileIds?.has(file.file_id) === true,
+    agentId: identity.agentId,
+    userId: identity.userId,
+  });
+  return id ? { kind, id } : undefined;
 }
 
 /** Reserve actual storage destinations before recovery so a failed winner never revives stale content. */
@@ -106,6 +179,7 @@ export async function selectCodeFiles({
   files,
   privateFileIds,
   routeKey,
+  identity,
   getFileInfo,
   concurrency,
   signal,
@@ -113,20 +187,50 @@ export async function selectCodeFiles({
   files: Array<TFile | null | undefined>;
   privateFileIds?: ReadonlySet<string>;
   routeKey: string;
+  /** With it, a snapshot is mounted from, and uploaded under, only the identity this turn
+   *  files it under: the agent for its own resource files, the requesting user otherwise. */
+  identity?: CodeTurnIdentity;
   getFileInfo: (ref: CodeEnvRef) => Promise<CodeFileInfo | null>;
   concurrency?: number;
   signal?: AbortSignal;
 }): Promise<{ selected: PrimedCodeFile[]; skippedNoRef: number; skippedSuperseded: number }> {
   let skippedNoRef = 0;
-  let skippedSuperseded = 0;
+  const generations = selectCodeFileGenerations(files, privateFileIds, routeKey);
+  let skippedSuperseded = generations.skippedSuperseded;
+  const snapshotMounts = planCodeSnapshotMounts(generations.files, privateFileIds, routeKey);
   const candidates = [];
   const registry = createCodeApiUploadRegistry();
-  for (const file of sortCodeFilesByDestinationPriority(files, privateFileIds)) {
+  const agentFileIds = identity
+    ? getAgentResourceFileIds(identity.agentResources, privateFileIds)
+    : undefined;
+  for (const file of generations.files) {
     if (!file) {
       continue;
     }
-    const ref = getCodeEnvRefForProfile(file.metadata, routeKey);
-    const sourceRef = ref ?? getCodeEnvRefs(file.metadata)[0]?.[1];
+    const snapshot = file.context === FileContext.execute_code_snapshot;
+    const routeRef = getCodeEnvRefForProfile(file.metadata, routeKey);
+    /* A pointer filed under another identity names a storage session this turn does not run
+     * as, whatever the Code API would answer for it. The snapshot is then uploaded under this
+     * turn's identity, as resource priming queues it, instead of mounted or re-filed there.
+     * The same scope addresses the upload when this route holds no pointer at all, so one
+     * left by another route never decides whose storage the bytes go to. */
+    const scope = snapshot ? getSnapshotScope(file, agentFileIds, identity) : undefined;
+    const foreign = scope != null && routeRef != null && !isCodeRefInScope(routeRef, scope);
+    const ownedRef = foreign ? undefined : routeRef;
+    /* A snapshot pointer names a mount. Only a receipt for this content version, matched
+     * against the stored object below, stands in for uploading the bytes again. */
+    const receipt = snapshot && !foreign ? getSnapshotReceipt(file, routeKey) : undefined;
+    const probeRef = snapshot ? receipt : ownedRef;
+    const sourceRef =
+      ownedRef ??
+      scope ??
+      getCodeEnvRefs(file.metadata)[0]?.[1] ??
+      (snapshot
+        ? {
+            kind: 'user' as const,
+            id: file.user.toString(),
+          }
+        : undefined);
     if (!sourceRef) {
       skippedNoRef++;
       continue;
@@ -138,18 +242,35 @@ export async function selectCodeFiles({
         scope: routeKey,
         concurrency,
         signal,
-        task: () => getFileInfo(sourceRef),
+        task: () => (probeRef ? getFileInfo(probeRef) : Promise.resolve(null)),
       }));
-    candidates.push({ file, ref, sourceRef, getInfo });
+    candidates.push({ file, probeRef, receipt, snapshot, sourceRef, getInfo });
   }
   const resolved = await Promise.all(
     candidates.map(async (candidate) => {
-      const { file, ref, sourceRef, getInfo } = candidate;
-      const info = ref ? await getInfo() : null;
+      const { file, probeRef, receipt, snapshot, sourceRef, getInfo } = candidate;
+      const info = probeRef ? await getInfo() : null;
       signal?.throwIfAborted();
-      const recovering = !ref || !checkCodeFileActive(info?.lastModified);
       const storedName = sourceRef.sandboxFilename ?? info?.originalFilename;
-      const sandboxName = storedName ?? resolveSandboxFilename(file.filename, file.type);
+      const plannedName = snapshotMounts.get(file.file_id);
+      const reusesReceipt =
+        receipt != null &&
+        provesStoredContent(receipt.content, info) &&
+        checkCodeFileActive(info?.lastModified) &&
+        receipt.sandboxFilename === (plannedName ?? getCodeFileDestination(file, routeKey));
+      const snapshotRef = reusesReceipt ? receipt : undefined;
+      const ref = snapshot ? snapshotRef : probeRef;
+      const recovering =
+        !ref ||
+        !checkCodeFileActive(info?.lastModified) ||
+        (plannedName != null &&
+          (plannedName !== (storedName ?? getCodeFileDestination(file, routeKey)) ||
+            (file.context === FileContext.execute_code &&
+              plannedName !== getCodeFileDestination(file, routeKey))));
+      const sandboxName =
+        file.context === FileContext.execute_code_snapshot
+          ? (snapshotMounts.get(file.file_id) ?? getCodeFileDestination(file, routeKey))
+          : (plannedName ?? storedName ?? resolveSandboxFilename(file.filename, file.type));
       const destination = recovering
         ? getCodeEnvUploadFilename(resolveSandboxFilename(sandboxName, file.type))
         : sandboxName;
@@ -287,7 +408,11 @@ export function getCodeFileContextLine(
 
 /** Whether the code-file note mentions this file at `destination` at all. */
 export function isDescribedCodeFile(file: CodeContextFile, destination: string): boolean {
-  return file.context !== FileContext.execute_code || destination !== file.filename;
+  return (
+    (file.context !== FileContext.execute_code &&
+      file.context !== FileContext.execute_code_snapshot) ||
+    destination !== file.filename
+  );
 }
 
 /** Provenance and preview state appended to a file shown under `shownName`. */
@@ -297,7 +422,7 @@ export function getCodeFileContextSuffix(
   shownName: string,
 ): string {
   const origin =
-    file.context === FileContext.execute_code
+    file.context === FileContext.execute_code || file.context === FileContext.execute_code_snapshot
       ? ` (written earlier as ${file.filename})`
       : `${agentScoped ? '' : ' (attached by user)'}${
           shownName !== file.filename ? ` (uploaded as ${file.filename})` : ''

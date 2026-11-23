@@ -25,14 +25,16 @@ import {
   getMessageClipboardSource,
   useCopyMessageToClipboard,
 } from '~/hooks';
-import { useForkConvoMutation, useGetMessagesByConvoId } from '~/data-provider';
 import { useHideSelectedAuthor } from '~/components/Chat/Menus/Endpoints/shown';
 import MessageContent from '~/components/Chat/Messages/Content/MessageContent';
+import { useForkConvoMutation, useCachedMessages } from '~/data-provider';
 import useConversationSeenSource from '~/hooks/Conversations/seenSource';
 import useGetAddedConvo from '~/hooks/Conversations/useGetAddedConvo';
 import { useOptionalMessagesOperations } from './MessagesViewContext';
 import { PrivateText } from '~/components/Chat/Messages/PrivateText';
+import { FLAT_THREAD } from '~/components/Chat/Messages/Thread/flag';
 import MessageAudio from '~/components/Chat/Messages/MessageAudio';
+import MessageUsage from '~/components/Chat/Input/TokenUsage/Turn';
 import { useAssistantsMapContext } from './AssistantsMapContext';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import Wakeup from '~/components/Chat/Messages/Content/Wakeup';
@@ -102,13 +104,8 @@ function useAppGetMessages(): () => TMessage[] | undefined {
 
 function useAppConversationMessages(
   conversationId: string | null | undefined,
-  isStreaming: boolean,
 ): TMessage[] | undefined {
-  return useGetMessagesByConvoId(
-    conversationId ?? '',
-    { enabled: !!conversationId },
-    { isStreaming },
-  ).data;
+  return useCachedMessages(conversationId ?? '').data;
 }
 
 function useAppAssistant(
@@ -156,11 +153,13 @@ export const appMessagesHost: MessagesHost = {
   useStreamedAttachments,
   useMessageFeedback: useAppMessageFeedback,
   renderMessageAudio: (props) => <AppMessageAudio {...props} />,
+  renderMessageUsage: (props) => <MessageUsage {...props} />,
   useScreenshotTarget: () => useScreenshot().screenshotTargetRef,
   useAutoScroll: () => useAtomValue(autoScrollAtom),
   useSeenSource: useConversationSeenSource,
   renderMessageIcon: (props) => <MessageIcon {...props} />,
   useMaximizeChatSpace: () => useRecoilValue(store.maximizeChatSpace),
+  useFlatThread: () => FLAT_THREAD,
   useHideSelectedAuthor,
   useAgentsMap: useAgentsMapContext,
   renderMessageBody: (props) => <MessageContent {...props} />,

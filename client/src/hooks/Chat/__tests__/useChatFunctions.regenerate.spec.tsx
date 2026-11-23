@@ -41,6 +41,11 @@ const mockGetEphemeralAgent = jest.fn((): TEphemeralAgent | null => null);
 const mockSetFilesToDelete = jest.fn();
 const mockGetSender = jest.fn(() => 'Assistant');
 const mockGetExpiry = jest.fn(() => 'expiry-key');
+const mockAgent = {
+  id: 'agent-1',
+  provider: EModelEndpoint.openAI,
+  model: 'gpt-5.1',
+} as Agent;
 const mockAgentQueryData: { current?: Agent } = {};
 const mockEndpointsQueryData: { current?: Record<string, unknown> } = {};
 const mockCapabilitiesData: { current?: Record<string, unknown> } = {};
@@ -48,11 +53,19 @@ const mockCapabilitiesState: {
   current?: { status: string; fetchStatus?: string; dataUpdatedAt?: number };
 } = {};
 /** A query that holds data always has a timestamp: loaded data is fresh unless a test says otherwise. */
-const mockGetQueryState = jest.fn((queryKey: readonly unknown[]) =>
-  queryKey[0] === QueryKeys.reasoningCapabilities
-    ? { dataUpdatedAt: Date.now(), ...mockCapabilitiesState.current }
-    : undefined,
-);
+const mockGetQueryState = jest.fn((queryKey: readonly unknown[]) => {
+  if (queryKey[0] === QueryKeys.reasoningCapabilities) {
+    return { dataUpdatedAt: Date.now(), ...mockCapabilitiesState.current };
+  }
+  if (
+    queryKey[0] === QueryKeys.agent &&
+    mockAgentQueryData.current &&
+    queryKey[1] === mockAgentQueryData.current.id
+  ) {
+    return { status: 'success', data: mockAgentQueryData.current };
+  }
+  return undefined;
+});
 const mockGetQueryData = jest.fn((queryKey: readonly unknown[]) => {
   if (queryKey[0] === QueryKeys.reasoningCapabilities) {
     return mockCapabilitiesData.current;
@@ -61,7 +74,12 @@ const mockGetQueryData = jest.fn((queryKey: readonly unknown[]) => {
     return mockAgentQueryData.current;
   }
   if (queryKey[0] === QueryKeys.endpoints) {
-    return mockEndpointsQueryData.current ?? {};
+    return (
+      mockEndpointsQueryData.current ?? {
+        [EModelEndpoint.agents]: { order: 0 },
+        [EModelEndpoint.openAI]: { order: 1 },
+      }
+    );
   }
   return {};
 });
@@ -294,7 +312,7 @@ function renderAsk(
     () =>
       useChatFunctions({
         isSubmitting: options.isSubmitting ?? false,
-        latestMessage: messages?.at(-1) ?? null,
+        getLatestMessage: () => messages?.at(-1) ?? null,
         conversation: immutableConversation,
         getMessages,
         setMessages,
@@ -309,6 +327,13 @@ function renderAsk(
   return { ...hook, getMessages, setMessages, setFiles, setSubmission, reasoningStore };
 }
 
+beforeEach(() => {
+  mockAgentQueryData.current = mockAgent;
+  mockEndpointsQueryData.current = undefined;
+  mockCapabilitiesData.current = undefined;
+  mockCapabilitiesState.current = undefined;
+});
+
 describe('useChatFunctions ask', () => {
   beforeEach(() => {
     mockEndpointsQueryData.current = undefined;
@@ -316,7 +341,6 @@ describe('useChatFunctions ask', () => {
     mockCapabilitiesState.current = undefined;
     localStorage.clear();
     jest.clearAllMocks();
-    mockAgentQueryData.current = undefined;
     mockGetLatestConversation.mockReturnValue(null);
     mockReadWorkspaceInputs.mockReturnValue(workspaceInputs());
     mockReadApprovalInputs.mockReturnValue(approvalInputs());
@@ -1046,8 +1070,48 @@ describe('useChatFunctions ask', () => {
 describe('useChatFunctions regenerate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAgentQueryData.current = undefined;
   });
+
+  it.each([undefined, [], [{ file_id: 'original-upload', type: 'text/plain' }]])(
+    'does not consume staged paste when regenerating a turn with files %p',
+    (originalFiles) => {
+      const original = { ...userMessage('replayed-user'), files: originalFiles };
+      const response = assistantMessage('replayed-answer', original.messageId);
+      const staged = new Map([
+        [
+          'pending-paste',
+          {
+            file_id: 'pending-paste',
+            size: 3000,
+            progress: 0,
+            pastedText: 'unsent clipboard text',
+          },
+        ],
+      ]);
+      const setFiles = jest.fn();
+      const setSubmission = jest.fn();
+      const { result } = renderHook(() =>
+        useChatFunctions({
+          isSubmitting: false,
+          getLatestMessage: () => response,
+          conversation: conversation('conversation-1'),
+          getMessages: () => [original, response],
+          setMessages: jest.fn(),
+          setSubmission,
+          setConversation: mockSetConversation,
+          files: staged,
+          setFiles,
+        }),
+      );
+      act(() => result.current.regenerate(response));
+      const submission = setSubmission.mock.calls.at(-1)?.[0] as TSubmission;
+      expect(submission.userMessage.text).toBe(original.text);
+      expect(submission.userMessage.files ?? []).toEqual(originalFiles ?? []);
+      expect(setFiles).not.toHaveBeenCalled();
+      expect(mockSetFilesToDelete).not.toHaveBeenCalled();
+      expect(staged.has('pending-paste')).toBe(true);
+    },
+  );
 
   it('keys a non-tail regenerate to the selected assistant response', () => {
     let messages = [
@@ -1072,7 +1136,7 @@ describe('useChatFunctions regenerate', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: messages[5],
+        getLatestMessage: () => messages[5],
         conversation,
         getMessages: () => messages,
         setMessages,
@@ -1172,7 +1236,6 @@ describe('useChatFunctions regenerate', () => {
 describe('useChatFunctions ask attachments', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAgentQueryData.current = undefined;
   });
   afterEach(() => {
     mockGetEphemeralAgent.mockReturnValue(null);
@@ -1199,7 +1262,7 @@ describe('useChatFunctions ask attachments', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: null,
+        getLatestMessage: () => null,
         conversation: conversation(Constants.NEW_CONVO as string),
         getMessages: () => [],
         setMessages,
@@ -1240,7 +1303,7 @@ describe('useChatFunctions ask attachments', () => {
       () =>
         useChatFunctions({
           isSubmitting: false,
-          latestMessage: null,
+          getLatestMessage: () => null,
           conversation: conversation(Constants.NEW_CONVO as string),
           getMessages: () => [],
           setMessages,
@@ -1288,7 +1351,7 @@ describe('useChatFunctions ask attachments', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: null,
+        getLatestMessage: () => null,
         conversation: conversation(Constants.NEW_CONVO as string),
         getMessages: () => [],
         setMessages: jest.fn(),
@@ -1322,7 +1385,7 @@ describe('useChatFunctions ask attachments', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: null,
+        getLatestMessage: () => null,
         conversation: conversation(Constants.NEW_CONVO as string),
         getMessages: () => [],
         setMessages: jest.fn(),
@@ -1378,7 +1441,7 @@ describe('useChatFunctions ask attachments', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: null,
+        getLatestMessage: () => null,
         conversation: conversation(Constants.NEW_CONVO as string),
         getMessages: () => [],
         setMessages,
@@ -1406,7 +1469,6 @@ describe('useChatFunctions ask attachments', () => {
 describe('useChatFunctions ask compaction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetQueryData.mockReturnValue({});
   });
 
   it('submits a summarize-only turn hung off the leaf without a new user bubble', () => {
@@ -1484,7 +1546,7 @@ describe('useChatFunctions ask compaction and the composer', () => {
     const { result } = renderHook(() =>
       useChatFunctions({
         isSubmitting: false,
-        latestMessage: messages[1],
+        getLatestMessage: () => messages[1],
         conversation: conversation('conversation-1'),
         getMessages: () => messages,
         setMessages,

@@ -11,6 +11,8 @@ import {
   resolveTurnCode,
   createRegenerate,
   isSubmittableMessage,
+  isInlineablePastedText,
+  markComposerFilesTaken,
   hasPendingAssistantParent,
 } from '../../core';
 import {
@@ -45,7 +47,7 @@ export function useTurns(
     getMessages,
     setMessages,
     isSubmitting,
-    latestMessage,
+    getLatestMessage,
     setSubmission,
     setConversation,
     conversation: immutableConversation,
@@ -154,8 +156,19 @@ export function useTurns(
       return false;
     }
 
+    if (!regenerateShaped && overrideFiles == null && files != null) {
+      for (const file of files.values()) {
+        if (file.progress < 1 && !isInlineablePastedText(file)) {
+          return false;
+        }
+      }
+    }
+
     /** The builder resolves `promptPrefix` on its copy; the pane's conversation stays as is. */
     const conversation = immutableConversation == null ? null : { ...immutableConversation };
+    if (services.canSubmit?.(conversation) === false) {
+      return false;
+    }
     const codeDecision = resolveTurnCode(services.readCodeInputs(), conversation);
     if (codeDecision == null) {
       logger.warn('[useTurns] Refusing to send without an available code workspace');
@@ -195,6 +208,7 @@ export function useTurns(
       return false;
     }
 
+    const latestMessage = getLatestMessage();
     if (isContinued && !latestMessage) {
       console.error('cannot continue AI message without latestMessage!');
       return false;
@@ -302,7 +316,17 @@ export function useTurns(
       services.openNewChat(turn.newChatPath);
     }
     if (fileEffects != null && setFiles) {
+      markComposerFilesTaken([
+        ...(fileEffects.canceledUploadIds ?? []),
+        ...(fileEffects.replacedFileIds ?? []),
+      ]);
       services.releaseFiles(fileEffects.submittedFileIds);
+      if (fileEffects.canceledUploadIds?.length) {
+        services.cancelUploads?.(fileEffects.canceledUploadIds);
+      }
+      if (fileEffects.replacedFileIds?.length) {
+        services.discardFiles?.(fileEffects.replacedFileIds);
+      }
       if (fileEffects.clearComposer) {
         setFiles(new Map());
         services.clearFilesToDelete();

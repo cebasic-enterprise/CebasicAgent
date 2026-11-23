@@ -11,10 +11,18 @@ import { ModelSelectorProvider, useModelSelectorContext } from './ModelSelectorC
 import { useShortcutAriaKey, useShortcutHint } from '~/hooks/useKeyboardShortcuts';
 import { ModelSelectorChatProvider } from './ModelSelectorChatContext';
 import { getSelectedIcon, getDisplayValue } from './utils';
+import { activateCatalog } from '~/hooks/useCatalogWarmup';
 import { CustomMenu as Menu } from './CustomMenu';
 import { isModelSelectorShown } from './shown';
 import DialogManager from './DialogManager';
 import { useLocalize } from '~/hooks';
+
+function activateSelectorCatalogs(open: boolean) {
+  if (!open) return;
+  activateCatalog('models');
+  activateCatalog('agents');
+  activateCatalog('assistants');
+}
 
 function ModelSelectorContent() {
   const localize = useLocalize();
@@ -71,7 +79,7 @@ function ModelSelectorContent() {
         <button
           data-testid="model-selector-button"
           aria-keyshortcuts={modelSelectorAriaKey}
-          className="border-border-chrome bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control my-1 flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm"
+          className="border-border-light bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm"
           aria-label={localize('com_ui_select_model')}
         >
           {selectedIcon && React.isValidElement(selectedIcon) && (
@@ -88,6 +96,7 @@ function ModelSelectorContent() {
   return (
     <div className="relative flex max-w-[60vw] min-w-0 flex-col items-center gap-2 sm:max-w-xs">
       <Menu
+        onOpenChange={activateSelectorCatalogs}
         values={selectedValues}
         onValuesChange={(values: Record<string, any>) => {
           setSelectedValues({

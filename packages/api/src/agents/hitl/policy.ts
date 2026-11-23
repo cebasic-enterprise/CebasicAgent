@@ -42,6 +42,12 @@ export interface ToolApprovalPolicyLayers {
    * an administrator to opt the whole endpoint into prompts.
    */
   attachedCodeEnvironment?: boolean;
+  /**
+   * The run acts under a grant whose owner approves some tools call by call (a scheduled
+   * chat). The owner's choice pauses the run without an administrator opting the whole
+   * endpoint into prompts; a hook supplies the decisions.
+   */
+  ownerApproval?: boolean;
 }
 
 /**
@@ -64,7 +70,7 @@ export function resolveToolApprovalPolicy(
   layers: ToolApprovalPolicyLayers,
 ): TToolApprovalPolicy | undefined {
   if (
-    layers.attachedCodeEnvironment === true &&
+    (layers.attachedCodeEnvironment === true || layers.ownerApproval === true) &&
     layers.endpoint?.enabled !== true &&
     layers.endpoint?.enabled !== false
   ) {
@@ -445,6 +451,7 @@ export interface PendingActionContext {
   requestFingerprintV2?: string;
   /** Graph-determining fields to replay on resume; see {@link RESUME_CONTEXT_KEYS}. */
   resumeContext?: Record<string, unknown>;
+  resumeAgentIds?: string[];
   /** Opaque server-only binding to the stateful code targets selected at pause time. */
   codeExecutionBinding?: Agents.CodeExecutionApprovalBinding;
   /** Server-only alias pairs of the offered "Always allow" tools; see `collectAllowAlwaysAliases`. */
@@ -983,6 +990,7 @@ export function buildPendingAction(
     requestFingerprint: ctx.requestFingerprint,
     requestFingerprintV2: ctx.requestFingerprintV2,
     resumeContext: ctx.resumeContext,
+    resumeAgentIds: ctx.resumeAgentIds,
     codeExecutionBinding: ctx.codeExecutionBinding,
     toolApprovalAliases: ctx.toolApprovalAliases,
   };
@@ -1005,6 +1013,7 @@ export function toClientPendingAction(
     requestFingerprint: _requestFingerprint,
     requestFingerprintV2: _requestFingerprintV2,
     resumeContext: _resumeContext,
+    resumeAgentIds: _resumeAgentIds,
     codeExecutionBinding: _codeExecutionBinding,
     toolApprovalBindings: _toolApprovalBindings,
     toolApprovalAliases: _toolApprovalAliases,

@@ -18,6 +18,7 @@ import { SubagentsHostProvider } from '../../../react/subagents/host';
 import { activeSubagentPanel } from '../../../react/subagents/state';
 import { MessagesHostProvider } from '../../../react/messages/host';
 import { MessagePartsHostProvider } from '../../../react/host';
+import { emptyToolCallChrome } from '../../../react/host';
 import SharedSubagentActivityDialog from '../shared';
 
 jest.mock('@librechat/client', () => ({
@@ -109,11 +110,14 @@ const partsHost: MessagePartsHost = {
   useFileMap: () => undefined,
   useToast: () => jest.fn(),
   useSandboxStarting: () => false,
+  usePtcTrace: () => ({ entries: [], dropped: 0 }),
+  useLoadedSkill: () => undefined,
   useToolArtifactClaim: () => [null, jest.fn()],
   useSteerEscalating: () => false,
   usePaneConversationId: () => null,
   useLiveAppliedSteer: () => [false, jest.fn()],
   useShare: () => ({}),
+  useToolCallChrome: emptyToolCallChrome,
 };
 
 const messagesHost = createMessagesHost({

@@ -80,7 +80,7 @@ const WorkspaceChange = memo(({ attachment }: { attachment: StatefulWorkspaceAtt
 
 WorkspaceChange.displayName = 'WorkspaceChange';
 
-export default function WorkspaceChanges({
+export default memo(function WorkspaceChanges({
   attachments,
 }: {
   attachments: StatefulWorkspaceAttachment[];
@@ -128,7 +128,7 @@ export default function WorkspaceChanges({
       </Button>
       <div id={panelId} style={style} inert={!isExpanded ? '' : undefined}>
         <div className="overflow-hidden" ref={ref} aria-hidden={!isExpanded}>
-          <div className="flex flex-col gap-2 pt-2">
+          <div className="flex flex-col gap-2 pt-1">
             {attachments.map((attachment) => (
               <WorkspaceChange
                 key={`${attachment.filepath}:${attachment.workspaceChange.path}`}
@@ -140,4 +140,4 @@ export default function WorkspaceChanges({
       </div>
     </div>
   );
-}
+});
