@@ -1,0 +1,56 @@
+# CeBasic Agent — LiteLLM en DigitalOcean (/opt/litellm en el droplet).
+# Solo Caddy publica puertos (80/443); LiteLLM y Postgres quedan en la red interna.
+services:
+  caddy:
+    image: docker.io/library/caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LITELLM_DOMAIN: ${LITELLM_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - litellm
+
+  litellm:
+    # Misma imagen que Heroku/local (main-stable 1.110.2), fijada por digest.
+    image: docker.litellm.ai/berriai/litellm@sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035
+    restart: always
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
+      STORE_MODEL_IN_DB: "False"
+      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_PASSWORD: ${LITELLM_UI_PASSWORD}
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+
+  litellm-db:
+    image: docker.io/library/postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - litellm-pgdata:/var/lib/postgresql/data
+
+volumes:
+  litellm-pgdata:
+  caddy-data:
+  caddy-config:

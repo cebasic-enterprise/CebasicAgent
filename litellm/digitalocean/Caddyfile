@@ -1,0 +1,5 @@
+# HTTPS automático (Let's Encrypt) para LITELLM_DOMAIN.
+{$LITELLM_DOMAIN} {
+	encode gzip
+	reverse_proxy litellm:4000
+}

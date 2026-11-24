@@ -123,7 +123,31 @@ LibreChat manda el id del usuario en el campo `user`. Así, LiteLLM registra el 
 
 `interface.theme` en `librechat.yaml` define el tema `cebasic`: la misma paleta que la UI de LiteLLM (grises de Tailwind, fuente Inter, botones casi negros y bordes gris claro), en modo claro y oscuro. Para ajustar un color, cambia su tripleta RGB y ejecuta `docker compose restart api`. Los nombres de los tokens están en `packages/data-provider/src/theme.ts`.
 
-## LiteLLM en Heroku
+## LiteLLM en DigitalOcean (producción)
+
+Droplet `cebasic-litellm` (sfo3, 2 GB / 1 vCPU, Ubuntu 24.04, IP `24.199.99.67`): **https://24-199-99-67.sslip.io** (`/ui` para el panel de admin).
+
+- Archivos en `litellm/digitalocean/`: `cloud-init.yaml` (Docker, ufw 22/80/443, sin password SSH, 1 GB de swap), `docker-compose.yml` (Caddy con HTTPS automático + LiteLLM fijado por digest + Postgres 16), `Caddyfile`, `backup.sh` y `.env.example`.
+- En el droplet todo vive en `/opt/litellm`; `.env` (chmod 600) tiene las llaves. Para ver una sin pegarla: `ssh root@24.199.99.67 grep UI_PASSWORD /opt/litellm/.env`.
+- Solo Caddy publica puertos; LiteLLM (4000) y Postgres (5432) no son accesibles desde fuera.
+- 1 GB no alcanza: LiteLLM usa ~860 MB con 1 worker.
+- Respaldo diario 03:30 (`backup.sh`, cron de root) en `/opt/litellm/backups`, guarda 14 días. Restaurar: `gunzip -c backups/litellm-FECHA.sql.gz | docker compose exec -T litellm-db psql -U litellm litellm`.
+- `LITELLM_SALT_KEY` **no se cambia** después del primer arranque (cifra las llaves guardadas).
+- Dominio propio: crear registro A a la IP, cambiar `LITELLM_DOMAIN` en `/opt/litellm/.env` y `docker compose up -d caddy`.
+
+Actualizar config o imagen:
+
+```bash
+scp litellm/config.yaml litellm/digitalocean/docker-compose.yml root@24.199.99.67:/opt/litellm/
+ssh root@24.199.99.67 'cd /opt/litellm && docker compose up -d && docker compose restart litellm'
+```
+
+Crear de cero: `doctl compute droplet create cebasic-litellm --region sfo3 --size s-1vcpu-2gb --image ubuntu-24-04-x64 --user-data-file litellm/digitalocean/cloud-init.yaml --enable-monitoring`, copiar los archivos + `config.yaml` + `.env` a `/opt/litellm` y `docker compose up -d`.
+
+## LiteLLM en Heroku (anterior)
+
+Reemplazado por DigitalOcean; se conserva mientras se decide borrarlo.
+
 
 App `cebasic-litellm` (https://cebasic-litellm-2a621166c365.herokuapp.com), stack container, dyno **Standard-2X** y Heroku Postgres `essential-0`.
 

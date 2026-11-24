@@ -1,0 +1,27 @@
+#cloud-config
+# Droplet de LiteLLM (CeBasic Agent). Ubuntu 24.04.
+package_update: true
+packages: [docker.io, docker-compose-v2, ufw, fail2ban]
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF3YhfyFr8+QQ1DbhjzYTt30hwN8x0OIMs/eABH1npjb bustamantelujano@gmail.com
+ssh_pwauth: false
+# DO expira el password de root si no hay llave SSH en la cuenta; sin esto
+# el acceso por llave pide cambiar contraseña y falla.
+chpasswd:
+  expire: false
+disable_root: false
+swap:
+  filename: /swapfile
+  size: 1G
+runcmd:
+  - chage -d $(date +%F) -M 99999 root
+  - passwd -l root
+  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - systemctl restart ssh
+  - ufw default deny incoming
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - systemctl enable --now docker
+  - mkdir -p /opt/litellm/backups
