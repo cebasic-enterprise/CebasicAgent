@@ -1,0 +1,55 @@
+# CeBasic Agent — cambios de la empresa sobre docker-compose.yml (upstream).
+# docker compose lee este archivo automáticamente.
+
+services:
+  api:
+    image: registry.librechat.ai/librechat-ai/librechat:latest
+    depends_on:
+      - mongodb
+      - rag_api
+      - litellm
+    volumes:
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+
+  litellm:
+    container_name: litellm
+    image: docker.litellm.ai/berriai/litellm:main-stable
+    restart: always
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      # Solo localhost: UI de admin en http://localhost:4000/ui
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
+      STORE_MODEL_IN_DB: "False"
+      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_PASSWORD: ${LITELLM_UI_PASSWORD}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+
+  litellm-db:
+    container_name: litellm-db
+    image: docker.io/library/postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - litellm-pgdata:/var/lib/postgresql/data
+
+volumes:
+  litellm-pgdata:
