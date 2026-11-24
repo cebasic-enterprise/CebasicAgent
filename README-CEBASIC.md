@@ -123,6 +123,27 @@ LibreChat manda el id del usuario en el campo `user`. Así, LiteLLM registra el 
 
 `interface.theme` en `librechat.yaml` define el tema `cebasic`: la misma paleta que la UI de LiteLLM (grises de Tailwind, fuente Inter, botones casi negros y bordes gris claro), en modo claro y oscuro. Para ajustar un color, cambia su tripleta RGB y ejecuta `docker compose restart api`. Los nombres de los tokens están en `packages/data-provider/src/theme.ts`.
 
+## LiteLLM en Heroku
+
+App `cebasic-litellm` (https://cebasic-litellm-2a621166c365.herokuapp.com), stack container, dyno **Standard-2X** y Heroku Postgres `essential-0`.
+
+- Un dyno Basic (512 MB) no alcanza: LiteLLM usa ~750 MB y Heroku lo mata al no arrancar en 60 s.
+- La imagen es la misma de local, fijada por digest en `litellm/Dockerfile.heroku`. `litellm/heroku-start.sh` usa `$PORT` y agrega `sslmode=require` a `DATABASE_URL`.
+- LiteLLM aplica sus migraciones solo al arrancar. No definas `DISABLE_SCHEMA_UPDATE`.
+- Variables de Heroku: `OPENROUTER_API_KEY`, `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` (**no cambiarla** después del primer arranque), `UI_USERNAME`, `UI_PASSWORD`, `STORE_MODEL_IN_DB=False` y `DATABASE_URL` (la pone el add-on). Para ver una sin pegarla en ningún lado: `heroku config:get UI_PASSWORD -a cebasic-litellm`.
+- UI de admin: `/ui` con `UI_USERNAME` / `UI_PASSWORD`.
+
+Desplegar un cambio (p.ej. en `litellm/config.yaml`):
+
+```bash
+cd litellm
+heroku container:login
+docker buildx build --platform linux/amd64 -f Dockerfile.heroku -t registry.heroku.com/cebasic-litellm/web --provenance=false --push .
+heroku container:release web -a cebasic-litellm
+```
+
+Para que LibreChat use este LiteLLM en vez del local: crea una virtual key en su UI, ponla en `LITELLM_API_KEY` y cambia `baseURL` del endpoint `CeBasic` en `librechat.yaml` a `https://cebasic-litellm-2a621166c365.herokuapp.com/v1`.
+
 ## Sincronizar con upstream
 
 ```bash
