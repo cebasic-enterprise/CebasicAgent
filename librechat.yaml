@@ -22,8 +22,8 @@ interface:
     public: false
 
 registration:
-  # Sin login social por ahora; la autenticación propia se definirá después.
-  socialLogins: []
+  # Login con CeBasic (OpenID Connect contra cebasicapi-node). Ver README-CEBASIC.md.
+  socialLogins: ["openid"]
 
 endpoints:
   custom:
