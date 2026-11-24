@@ -144,29 +144,9 @@ ssh root@24.199.99.67 'cd /opt/litellm && docker compose up -d && docker compose
 
 Crear de cero: `doctl compute droplet create cebasic-litellm --region sfo3 --size s-1vcpu-2gb --image ubuntu-24-04-x64 --user-data-file litellm/digitalocean/cloud-init.yaml --enable-monitoring`, copiar los archivos + `config.yaml` + `.env` a `/opt/litellm` y `docker compose up -d`.
 
-## LiteLLM en Heroku (anterior)
+## LiteLLM en Heroku (retirado)
 
-Reemplazado por DigitalOcean; se conserva mientras se decide borrarlo.
-
-
-App `cebasic-litellm` (https://cebasic-litellm-2a621166c365.herokuapp.com), stack container, dyno **Standard-2X** y Heroku Postgres `essential-0`.
-
-- Un dyno Basic (512 MB) no alcanza: LiteLLM usa ~750 MB y Heroku lo mata al no arrancar en 60 s.
-- La imagen es la misma de local, fijada por digest en `litellm/Dockerfile.heroku`. `litellm/heroku-start.sh` usa `$PORT` y agrega `sslmode=require` a `DATABASE_URL`.
-- LiteLLM aplica sus migraciones solo al arrancar. No definas `DISABLE_SCHEMA_UPDATE`.
-- Variables de Heroku: `OPENROUTER_API_KEY`, `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY` (**no cambiarla** después del primer arranque), `UI_USERNAME`, `UI_PASSWORD`, `STORE_MODEL_IN_DB=False` y `DATABASE_URL` (la pone el add-on). Para ver una sin pegarla en ningún lado: `heroku config:get UI_PASSWORD -a cebasic-litellm`.
-- UI de admin: `/ui` con `UI_USERNAME` / `UI_PASSWORD`.
-
-Desplegar un cambio (p.ej. en `litellm/config.yaml`):
-
-```bash
-cd litellm
-heroku container:login
-docker buildx build --platform linux/amd64 -f Dockerfile.heroku -t registry.heroku.com/cebasic-litellm/web --provenance=false --push .
-heroku container:release web -a cebasic-litellm
-```
-
-Para que LibreChat use este LiteLLM en vez del local: crea una virtual key en su UI, ponla en `LITELLM_API_KEY` y cambia `baseURL` del endpoint `CeBasic` en `librechat.yaml` a `https://cebasic-litellm-2a621166c365.herokuapp.com/v1`.
+La app `cebasic-litellm` de Heroku (Standard-2X + Postgres essential-0) se borró el 2026-11-24 al pasar a DigitalOcean.
 
 ## Sincronizar con upstream
 
