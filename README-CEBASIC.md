@@ -53,7 +53,7 @@ Se entra con el mismo usuario y contraseña de la app **cebasicwork** (tabla `Ct
 
 - Es el **único** acceso: la pantalla de login de LibreChat manda directo al login de CeBasic (`OPENID_AUTO_REDIRECT=true`). El login por correo y el registro están apagados (`ALLOW_EMAIL_LOGIN=false`, `ALLOW_REGISTRATION=false`) y `POST /api/auth/login` responde 403. No definas `ALLOW_EMAIL_LOGIN_OVERRIDE`.
 - La cuenta de LibreChat se crea sola la primera vez (`ALLOW_SOCIAL_REGISTRATION=true`).
-- Sólo entran usuarios con `bEstatus` activo. Un usuario dado de baja ya no puede iniciar sesión (la sesión de LibreChat que ya tenga abierta dura hasta que expire).
+- Sólo entran usuarios activos: `bEstatus = 0` (en `Ctl_Usuarios` el 1 es baja) y `bBloqueado` distinto de 1. Un usuario dado de baja ya no puede iniciar sesión (la sesión de LibreChat que ya tenga abierta dura hasta que expire).
 - `bAdministrador = 1` (o estar en `ADMIN_USERS` de cebasicapi-node) → rol **ADMIN** en LibreChat. Si se lo quitan, vuelve a USER en su siguiente login.
 - El correo es sintético: `{usuario}@cebasic.local` (LibreChat necesita un correo).
 - El proveedor siempre pide la contraseña, aunque se haya entrado antes en el mismo navegador (equipos compartidos en sucursal).
