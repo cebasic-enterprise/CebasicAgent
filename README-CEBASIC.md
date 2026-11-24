@@ -119,6 +119,10 @@ LibreChat manda el id del usuario en el campo `user`. Así, LiteLLM registra el 
    docker compose restart litellm api
    ```
 
+### Tema visual
+
+`interface.theme` en `librechat.yaml` define el tema `cebasic`: la misma paleta que la UI de LiteLLM (grises de Tailwind, fuente Inter, botones casi negros y bordes gris claro), en modo claro y oscuro. Para ajustar un color, cambia su tripleta RGB y ejecuta `docker compose restart api`. Los nombres de los tokens están en `packages/data-provider/src/theme.ts`.
+
 ## Sincronizar con upstream
 
 ```bash

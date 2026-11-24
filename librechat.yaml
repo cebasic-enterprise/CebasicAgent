@@ -4,6 +4,92 @@ version: 1.3.19
 cache: true
 
 interface:
+  # Tema CeBasic: misma paleta que la UI de LiteLLM (Tailwind gray, Inter,
+  # botones casi negros, bordes gray-200). Colores = tripletas RGB.
+  theme:
+    version: 1
+    name: cebasic
+    modes:
+      light:
+        colors:
+          rgb-page-canvas: '255 255 255'
+          rgb-surface-canvas: '255 255 255'
+          rgb-surface-primary: '255 255 255'
+          rgb-surface-primary-alt: '255 255 255'
+          rgb-surface-secondary: '249 250 251'
+          rgb-surface-secondary-alt: '249 250 251'
+          rgb-surface-tertiary: '243 244 246'
+          rgb-surface-tertiary-alt: '243 244 246'
+          rgb-surface-sidebar: '255 255 255'
+          rgb-surface-chat: '255 255 255'
+          rgb-surface-composer: '255 255 255'
+          rgb-surface-user-message: '243 244 246'
+          rgb-surface-hover: '243 244 246'
+          rgb-surface-hover-alt: '243 244 246'
+          rgb-surface-nav-hover: '243 244 246'
+          rgb-surface-nav-selected: '243 244 246'
+          rgb-surface-active: '229 231 235'
+          rgb-surface-active-alt: '229 231 235'
+          rgb-surface-submit: '17 24 39'
+          rgb-surface-submit-hover: '31 41 55'
+          rgb-surface-inverted: '17 24 39'
+          rgb-surface-inverted-hover: '31 41 55'
+          rgb-button-primary: '17 24 39'
+          rgb-button-primary-hover: '31 41 55'
+          rgb-accent-primary: '17 24 39'
+          rgb-accent-primary-hover: '31 41 55'
+          rgb-text-primary: '3 7 18'
+          rgb-text-secondary: '75 85 99'
+          rgb-text-secondary-alt: '75 85 99'
+          rgb-text-tertiary: '107 114 128'
+          rgb-text-muted: '107 114 128'
+          rgb-border-light: '229 231 235'
+          rgb-border-medium: '209 213 219'
+          rgb-border-medium-alt: '209 213 219'
+          rgb-border-heavy: '156 163 175'
+          rgb-link: '37 99 235'
+          rgb-link-hover: '29 78 216'
+          rgb-ring-primary: '37 99 235'
+          rgb-focus-outline: '37 99 235'
+        appearance:
+          controlRadius: '0.375rem'
+          surfaceRadius: '0.75rem'
+      dark:
+        colors:
+          rgb-page-canvas: '3 7 18'
+          rgb-surface-canvas: '3 7 18'
+          rgb-surface-primary: '3 7 18'
+          rgb-surface-primary-alt: '3 7 18'
+          rgb-surface-secondary: '17 24 39'
+          rgb-surface-secondary-alt: '17 24 39'
+          rgb-surface-tertiary: '31 41 55'
+          rgb-surface-tertiary-alt: '31 41 55'
+          rgb-surface-sidebar: '3 7 18'
+          rgb-surface-chat: '3 7 18'
+          rgb-surface-composer: '17 24 39'
+          rgb-surface-user-message: '31 41 55'
+          rgb-surface-hover: '31 41 55'
+          rgb-surface-hover-alt: '31 41 55'
+          rgb-surface-nav-hover: '17 24 39'
+          rgb-surface-nav-selected: '31 41 55'
+          rgb-surface-active: '55 65 81'
+          rgb-surface-active-alt: '55 65 81'
+          rgb-text-primary: '249 250 251'
+          rgb-text-secondary: '209 213 219'
+          rgb-text-secondary-alt: '209 213 219'
+          rgb-text-tertiary: '156 163 175'
+          rgb-text-muted: '156 163 175'
+          rgb-border-light: '31 41 55'
+          rgb-border-medium: '55 65 81'
+          rgb-border-medium-alt: '55 65 81'
+          rgb-border-heavy: '75 85 99'
+          rgb-link: '96 165 250'
+          rgb-link-hover: '147 197 253'
+          rgb-ring-primary: '96 165 250'
+          rgb-focus-outline: '96 165 250'
+        appearance:
+          controlRadius: '0.375rem'
+          surfaceRadius: '0.75rem'
   customWelcome: "¡Hola! Soy CeBasic Agent. ¿En qué te ayudo hoy?"
   modelSelect: true
   parameters: true
