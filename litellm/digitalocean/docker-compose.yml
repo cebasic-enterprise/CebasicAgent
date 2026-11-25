@@ -1,5 +1,7 @@
-# CeBasic Agent — LiteLLM en DigitalOcean (/opt/litellm en el droplet).
-# Solo Caddy publica puertos (80/443); LiteLLM y Postgres quedan en la red interna.
+# CeBasic Agent en DigitalOcean (/opt/litellm en el droplet).
+# LiteLLM + LibreChat + login OIDC de CeBasic. Solo Caddy publica puertos
+# (80/443); todo lo demás queda en la red interna de Docker.
+# Secretos: .env (LiteLLM y dominios), .env.librechat y .env.oidc (no van a git).
 services:
   caddy:
     image: docker.io/library/caddy:2
@@ -9,12 +11,16 @@ services:
       - "443:443"
     environment:
       LITELLM_DOMAIN: ${LITELLM_DOMAIN}
+      AGENT_DOMAIN: ${AGENT_DOMAIN}
+      LOGIN_DOMAIN: ${LOGIN_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
       - litellm
+      - librechat
+      - oidc
 
   litellm:
     # Misma imagen que Heroku/local (main-stable 1.110.2), fijada por digest.
@@ -50,7 +56,71 @@ services:
     volumes:
       - litellm-pgdata:/var/lib/postgresql/data
 
+  # --- CeBasic Agent (LibreChat) ---
+  librechat:
+    # Misma imagen que en local (release numerado), fijada por digest.
+    image: registry.librechat.ai/librechat-ai/librechat@sha256:4a3967a47031c1fdba8302a6a341be7671101e40b617f7934ba25aac69fcea2b
+    restart: always
+    env_file: .env.librechat
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3080"
+      MONGO_URI: mongodb://mongodb:27017/LibreChat
+    volumes:
+      - ./.env.librechat:/app/.env:ro
+      - ./librechat.yaml:/app/librechat.yaml:ro
+      - ./branding/favicon-16x16.png:/app/client/dist/assets/favicon-16x16.png:ro
+      - ./branding/favicon-32x32.png:/app/client/dist/assets/favicon-32x32.png:ro
+      - ./branding/apple-touch-icon-180x180.png:/app/client/dist/assets/apple-touch-icon-180x180.png:ro
+      - ./branding/icon-192x192.png:/app/client/dist/assets/icon-192x192.png:ro
+      - ./branding/maskable-icon.png:/app/client/dist/assets/maskable-icon.png:ro
+      - ./branding/logo.svg:/app/client/dist/assets/logo.svg:ro
+      - ./branding/cebasic-agent.png:/app/client/dist/assets/cebasic-agent.png:ro
+      - librechat-uploads:/app/uploads
+      - librechat-images:/app/client/public/images
+      - librechat-logs:/app/logs
+      - librechat-data:/app/data
+    depends_on:
+      - mongodb
+      - litellm
+      - oidc
+
+  mongodb:
+    image: docker.io/library/mongo@sha256:098862b1339f031900ca66cf8fef799e616d6324fa41b9a263f2ec899552c1ef
+    restart: always
+    # Sin auth: solo es alcanzable dentro de la red de Docker (no publica puertos).
+    command: mongod --noauth --wiredTigerCacheSizeGB 0.25
+    volumes:
+      - mongo-data:/data/db
+
+  # --- Login de CeBasic (OIDC) ---
+  oidc:
+    build: ./oidc
+    image: cebasic-oidc:local
+    restart: always
+    env_file: .env.oidc
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      OIDC_ENABLED: "true"
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+
 volumes:
   litellm-pgdata:
   caddy-data:
   caddy-config:
+  librechat-uploads:
+  librechat-images:
+  librechat-logs:
+  librechat-data:
+  mongo-data:
+  redis-data:

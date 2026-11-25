@@ -156,6 +156,37 @@ La app `cebasic-litellm` de Heroku (Standard-2X + Postgres essential-0) se borr�
 
 Está en `desktop/`. Ahí están el README y los comandos para generar el `.dmg` y el `.exe`.
 
+## Producción (droplet de DigitalOcean)
+
+Todo corre en el droplet `cebasic-litellm` (24.199.99.67, 4 GB, sfo3), en `/opt/litellm`. La definición está en `litellm/digitalocean/`.
+
+| URL | Servicio |
+|---|---|
+| https://agent.24-199-99-67.sslip.io | CeBasic Agent (LibreChat) |
+| https://login.24-199-99-67.sslip.io/oidc | Login de CeBasic (OIDC). Solo se publica `/oidc` |
+| https://24-199-99-67.sslip.io | LiteLLM (API y `/ui`) |
+
+- **Caddy:** pone HTTPS (Let's Encrypt) a los tres dominios. Es el único servicio que abre puertos.
+- **LibreChat:** usa MongoDB, sin Meilisearch ni RAG.
+- **LiteLLM:** LibreChat se conecta con la virtual key `cebasic-agent-librechat`.
+- **OIDC:** el código es la rama `feat/oidc-login` de cebasicapi-node (PR #6). Corre en un contenedor aparte, con Redis local. **No toca el Heroku de cebasicwork**: su `/auth/:user/:pass` sigue igual. Lee `Ctl_Usuarios` del mismo SQL Server.
+- **Secretos:** solo existen en el droplet, nunca en git: `.env` (LiteLLM y dominios), `.env.librechat` y `.env.oidc` (con las credenciales del SQL Server). El `OPENID_CLIENT_SECRET` de LibreChat es igual al `OIDC_CLIENT_SECRET` del OIDC.
+- **Respaldos:** `backup.sh` corre diario a las 03:30 y guarda 14 días: Postgres de LiteLLM y Mongo de LibreChat.
+
+Actualizar (código, config o rama del OIDC):
+
+```bash
+litellm/digitalocean/deploy.sh
+```
+
+Cambiar de dominio (por ejemplo a uno propio):
+
+1. Edita `AGENT_DOMAIN` y `LOGIN_DOMAIN` en `/opt/litellm/.env`.
+2. Edita `DOMAIN_CLIENT`, `DOMAIN_SERVER` y `OPENID_ISSUER` en `.env.librechat`.
+3. Edita `OIDC_ISSUER`, `OIDC_REDIRECT_URIS` y `OIDC_POST_LOGOUT_REDIRECT_URIS` en `.env.oidc`.
+4. Ejecuta `docker compose up -d`.
+5. Cambia `defaultServerUrl` en `desktop/package.json` y vuelve a generar los instaladores.
+
 ## Sincronizar con upstream
 
 ```bash

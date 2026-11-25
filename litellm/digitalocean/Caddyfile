@@ -1,5 +1,25 @@
-# HTTPS automático (Let's Encrypt) para LITELLM_DOMAIN.
+# HTTPS automático (Let's Encrypt) para los tres dominios del droplet.
+
+# LiteLLM (API + UI de admin)
 {$LITELLM_DOMAIN} {
 	encode gzip
 	reverse_proxy litellm:4000
+}
+
+# CeBasic Agent (LibreChat)
+{$AGENT_DOMAIN} {
+	encode gzip
+	reverse_proxy librechat:3080
+}
+
+# Login de CeBasic (OIDC de cebasicapi-node). Solo se publica /oidc: el resto
+# de rutas de la API no se expone desde este servidor.
+{$LOGIN_DOMAIN} {
+	encode gzip
+	handle /oidc* {
+		reverse_proxy oidc:3000
+	}
+	handle {
+		respond "Not found" 404
+	}
 }

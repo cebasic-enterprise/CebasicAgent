@@ -14,7 +14,7 @@
     "dist": "electron-builder --mac --win"
   },
   "cebasic": {
-    "defaultServerUrl": "http://localhost:3080"
+    "defaultServerUrl": "https://agent.24-199-99-67.sslip.io"
   },
   "devDependencies": {
     "electron": "45.2.3",

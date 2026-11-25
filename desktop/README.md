@@ -27,7 +27,7 @@ La URL del servidor se decide así, de mayor a menor prioridad:
 
 1. La variable `CEBASIC_AGENT_URL`, por ejemplo `CEBASIC_AGENT_URL=https://agent.ejemplo.com npm start`.
 2. Lo que el usuario guarde en el menú **Servidor…** (`Cmd+,` en Mac, `Ctrl+,` en Windows). Se guarda en `config.json`, dentro de la carpeta de datos de la app.
-3. `cebasic.defaultServerUrl` en `package.json`. Hoy es `http://localhost:3080`; cámbialo por la URL de producción antes de repartir la app.
+3. `cebasic.defaultServerUrl` en `package.json`. Hoy es `https://agent.24-199-99-67.sslip.io` (producción en el droplet). Para probar contra local: `CEBASIC_AGENT_URL=http://localhost:3080 npm start`.
 
 Si el servidor no responde, la app muestra una página con **Reintentar** y **Cambiar servidor**.
 
