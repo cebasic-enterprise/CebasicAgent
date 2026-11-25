@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>CeBasic Agent</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="center">
+    <div>
+      <h1>No se pudo conectar con CeBasic Agent</h1>
+      <p>Revisa tu conexión a internet o la dirección del servidor.</p>
+      <p><code id="detail"></code></p>
+      <div class="row">
+        <button type="button" id="settings">Cambiar servidor</button>
+        <button type="button" class="primary" id="retry">Reintentar</button>
+      </div>
+    </div>
+  </main>
+  <script src="offline.js"></script>
+</body>
+</html>

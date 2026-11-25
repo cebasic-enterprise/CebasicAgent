@@ -148,6 +148,14 @@ Crear de cero: `doctl compute droplet create cebasic-litellm --region sfo3 --siz
 
 La app `cebasic-litellm` de Heroku (Standard-2X + Postgres essential-0) se borró el 2026-11-24 al pasar a DigitalOcean.
 
+### Marca (logo de cebasicwork)
+
+`branding/` tiene los favicons, `logo.svg` y `cebasic-agent.png` (el icono del asistente). Todos salen del logo de cebasicwork. `docker-compose.override.yml` los monta encima de los assets públicos de LibreChat (`/app/client/dist/assets/`), así que no hace falta tocar código. Para cambiar el logo, reemplaza los archivos y ejecuta `docker compose up -d api`.
+
+### App de escritorio (Mac y Windows)
+
+Está en `desktop/`. Ahí están el README y los comandos para generar el `.dmg` y el `.exe`.
+
 ## Sincronizar con upstream
 
 ```bash

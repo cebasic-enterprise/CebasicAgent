@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Servidor de CeBasic Agent</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <form class="wrap" id="form">
+    <h1>Servidor</h1>
+    <p>Dirección de CeBasic Agent a la que se conecta esta app.</p>
+    <label for="url">URL</label>
+    <input id="url" type="text" placeholder="https://agent.ejemplo.com" autocomplete="off" spellcheck="false" required>
+    <div class="err" id="err"></div>
+    <div class="row">
+      <button type="button" id="cancel">Cancelar</button>
+      <button type="submit" class="primary">Guardar y conectar</button>
+    </div>
+  </form>
+  <script src="settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "name": "cebasic-agent-desktop",
+  "productName": "CeBasic Agent",
+  "version": "0.1.0",
+  "description": "App de escritorio (Mac y Windows) de CeBasic Agent",
+  "author": "Cebasic",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder --mac --win"
+  },
+  "cebasic": {
+    "defaultServerUrl": "http://localhost:3080"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "com.cebasic.agent",
+    "productName": "CeBasic Agent",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "icon": "build/icon.icns"
+    },
+    "dmg": { "title": "CeBasic Agent" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "CeBasic Agent"
+    }
+  }
+}

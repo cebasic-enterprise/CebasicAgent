@@ -12,6 +12,14 @@ services:
       - type: bind
         source: ./librechat.yaml
         target: /app/librechat.yaml
+      # Marca CeBasic (logo de cebasicwork) sobre los assets públicos de LibreChat
+      - ./branding/favicon-16x16.png:/app/client/dist/assets/favicon-16x16.png:ro
+      - ./branding/favicon-32x32.png:/app/client/dist/assets/favicon-32x32.png:ro
+      - ./branding/apple-touch-icon-180x180.png:/app/client/dist/assets/apple-touch-icon-180x180.png:ro
+      - ./branding/icon-192x192.png:/app/client/dist/assets/icon-192x192.png:ro
+      - ./branding/maskable-icon.png:/app/client/dist/assets/maskable-icon.png:ro
+      - ./branding/logo.svg:/app/client/dist/assets/logo.svg:ro
+      - ./branding/cebasic-agent.png:/app/client/dist/assets/cebasic-agent.png:ro
 
   litellm:
     container_name: litellm

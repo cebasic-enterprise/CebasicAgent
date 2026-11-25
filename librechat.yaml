@@ -128,3 +128,4 @@ endpoints:
       titleConvo: true
       titleModel: "claude-haiku"
       modelDisplayLabel: "CeBasic Agent"
+      iconURL: "/assets/cebasic-agent.png"
